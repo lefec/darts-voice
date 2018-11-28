@@ -5,8 +5,8 @@ if (annyang) {
   Shiny.onInputChange('color', 'black');
   Shiny.onInputChange('bigger', 1);
   Shiny.onInputChange('yes', 'no');
-  Shiny.onInputChange('leo', '0');
-  Shiny.onInputChange('simon', '0');
+  Shiny.onInputChange('player1', '0');
+  Shiny.onInputChange('player2', '0');
   var commands = {
     'title *title': function(title) {
       Shiny.onInputChange('title', title);
@@ -15,10 +15,10 @@ if (annyang) {
       Shiny.onInputChange('color', color);
     },
     'leo :leo': function(leo) {
-      Shiny.onInputChange('leo', leo);
+      Shiny.onInputChange('player1', leo);
     },
     'simon :simon': function(simon) {
-      Shiny.onInputChange('simon', simon);
+      Shiny.onInputChange('player2', simon);
     },
     'bigger': function() {
       bigger += 1;

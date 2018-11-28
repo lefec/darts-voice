@@ -1,35 +1,49 @@
 library(shiny)
-shinyApp(
-  ui = fluidPage(
+library(googleLanguageR)
+gl_auth("gl_auth.json")
+
+
+ui = 
+  fluidPage(
     singleton(tags$head(
       tags$script(src="//cdnjs.cloudflare.com/ajax/libs/annyang/1.4.0/annyang.min.js"),
       includeScript('init.js')
     )),
-    div(
-      style = 'display: block; margin: auto; width: 100%; max-width: 500px',
-      plotOutput('foo'),
-      helpText(
-        'You are recommended to use Google Chrome to play with this app.',
-        'To change the title, say something that starts with "title", e.g.',
-        '"title I love the R language", or "title Good Morning".',
-        'To change the color of points, say something that starts with "color",',
-        'e.g. color "blue", or color "green". When the app is unable to recognize the color,',
-        'the points will turn gray.',
-        'To add a regression line, say "regression".',
-        'To make the points bigger or smaller, say "bigger" or "smaller".'
-      ),
-      helpText(HTML(
-        'The source code of this app is <a href="https://github.com/yihui/shiny-apps/tree/master/voice">on Github</a>.',
-        'You may also see <a href="http://vimeo.com/yihui/shiny-voice">my demo</a> of playing with this app.'
-      ))
-    )
-  ),
-  server = function(input, output) {
-    output$foo = renderPlot({
-      col = input$color
-      if (length(col) == 0 || !(col %in% colors())) col = 'gray'
-      plot(cars, main = paste0('Leo: ', input$leo, '; Simon: ', input$simon), 
-           col = col, cex = input$bigger, pch = 19)
-    })
-  }
-)
+    textOutput('foo'),
+    uiOutput('talk_player1'), 
+    uiOutput('talk_player2')
+  )
+
+server = function(input, output) {
+  
+  output$foo = renderText({
+    paste0('Leo: ', input$player1, '; Simon: ', input$player2)
+  })
+  
+  output$talk_player1 <- renderUI({
+    
+    # to prevent browser caching, create a new audio filename each play
+    # create within the www folder of the Shiny app
+    output_file <- paste0("www/player1_", isolate(input$player1), ".wav")
+    
+    # replace with your reactive text input
+    gl_talk(paste0("Leo ", input$player1),
+            output = output_file)
+    
+    # creates HTML5 audio player
+    # the audio file sits in folder www, but the audio file must be referenced without www
+    tags$audio(autoplay = NA, controls = NA, tags$source(src = basename(output_file)))
+    
+  })
+  
+  output$talk_player2 <- renderUI({
+    output_file <- paste0("www/player2_", isolate(input$player2), ".wav")
+    gl_talk(paste0("Simon ", input$player2),
+            output = output_file, 
+            name = "en-AU-Wavenet-B")
+    tags$audio(autoplay = NA, controls = NA, tags$source(src = basename(output_file)))
+  })
+  
+}
+
+shinyApp(ui, server)
