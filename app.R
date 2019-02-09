@@ -1,7 +1,9 @@
 library(shiny)
 library(googleLanguageR)
+library(DT)
 gl_auth("gl_auth.json")
 
+source("helpers/scoring.R")
 
 ui = 
   fluidPage(
@@ -11,14 +13,27 @@ ui =
     )),
     textOutput('foo'),
     uiOutput('talk_player1'), 
-    uiOutput('talk_player2')
+    uiOutput('talk_player2'), 
+    numericInput('newScore', "Enter Score:", value = NA_real_, min = 0, max = 180),
+    actionButton('confirmScore', "Confirm Score"),
+    DT::dataTableOutput('scoreboard')
   )
 
 server = function(input, output) {
   
+  rv = reactiveValues()
+  rv$leg = legInit()
+  
   output$foo = renderText({
     paste0('Leo: ', input$player1, '; Simon: ', input$player2)
   })
+  
+  observeEvent(input$confirmScore, 
+               {
+                 rv$leg = legAddScore(rv$leg, isolate(input$newScore))
+               })
+  
+  output$scoreboard = DT::renderDataTable(legScoreboard(rv$leg))
   
   output$talk_player1 <- renderUI({
     
