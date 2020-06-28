@@ -79,14 +79,17 @@ Leg1Player <- R6Class(
       
       if (private$reactive) private$rxTrigger$trigger()
       
-      # if(self$double_out)
-      
       hist_tmp <- 
         tibble(score = value, darts_count = 3, 
                round = self$round() + 1L, 
                remaining = self$remain() - value)
       
       private$hist <- bind_rows(private$hist, hist_tmp)
+    },
+    
+    score_rest = function(rest){
+      value <- self$remain() - rest
+      self$score(value)
     },
      
     getHist = function(){
@@ -141,6 +144,7 @@ LegNPlayers <- R6Class(
       self$legs <- legs
       self$players <- player_names
     }, 
+    
     print = function(...) {
       cat("Players", self$players, "| Has finished: ", self$has_finished)
       invisible(self)
@@ -150,6 +154,19 @@ LegNPlayers <- R6Class(
       stop_if_not(self$has_finished, isFALSE)
       
       self$legs[[self$next_score]]$score(value)
+      
+      if(self$legs[[self$next_score]]$status() == "finished"){
+        self$has_finished <- TRUE
+        print("finished")
+      }
+      
+      self$next_score <- if_else(self$next_score == length(self$players), 1, self$next_score + 1)
+    }, 
+    
+    score_rest = function(value){
+      stop_if_not(self$has_finished, isFALSE)
+      
+      self$legs[[self$next_score]]$score_rest(value)
       
       if(self$legs[[self$next_score]]$status() == "finished"){
         self$has_finished <- TRUE

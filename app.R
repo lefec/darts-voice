@@ -103,26 +103,25 @@ server <- function(input, output, session){
             textOutput('next_player'), 
             numericInput('score_count', "Score", NA_real_, 
                          min = 0, max = 180, step = 1)),
-        actionButton('score', "Score") %>% hidden()
+        actionButton('score', "Score") %>% hidden(), 
+        actionButton('score_rest', "Score Rest") %>% hidden()
         ))
   })
   
   observeEvent(rv$game$players, {
-    map(rv$game$legs, iBox, output = output, .width = 12/length(rv$game$players))
+    walk(rv$game$legs, iBox, output = output, .width = 12/length(rv$game$players))
   })
   
-  # observe({
-  #   isolate(req(rv$game$legs))
-  #   table_id <- glue('table_{rv$game$legs[[1]]$player_name}')
-  #   output[[table_id]] <- DT::renderDataTable(rv$game$legs[[1]]$hist)
-  # })
-
-  observeEvent(input$score, {
-    req(input$score_count)
-    rv$game$score(input$score_count)
+ 
+  # Function that is called whenever the scoring is triggered by either
+  # pressing "Enter" or "r"
+  scoring_event = function(value, rest = FALSE){
+    scoring_fun = if(rest) rv$game$score_rest else rv$game$score
+    
+    scoring_fun(value)
     next_player <- rv$game$players[rv$game$next_score]
     output$next_player <- renderText(next_player)
-
+    
     if(exists("class_to_add")){
       removeClass(class = class_to_add, selector = '#score_count')
     }
@@ -131,7 +130,20 @@ server <- function(input, output, session){
     addClass(class = class_to_add, selector = '#score_count')
     
     updateNumericInput(session, 'score_count', value = NA_real_)
+  }
+  
+  # Event triggered by pressing "Enter"
+  observeEvent(input$score, {
+    req(input$score_count)
+    scoring_event(input$score_count, FALSE)
   })
+  
+  # Event triggered by pressing "r"
+  observeEvent(input$score_rest, {
+    req(input$score_count)
+    scoring_event(input$score_count, TRUE)
+  })
+
 }
 
 shinyApp(ui, server)
