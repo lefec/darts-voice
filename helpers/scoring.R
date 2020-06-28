@@ -85,6 +85,10 @@ legAddScore = function(leg, score, darts = 3L){
   leg
 }
 
+# legInit() %>% 
+#   legAddScore(56L) %>% 
+#   legAddScore(111L) %>% 
+#   legAddScore(181L)
 
 # leg = legInit()
 # 

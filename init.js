@@ -7,6 +7,11 @@ if (annyang) {
   Shiny.onInputChange('yes', 'no');
   Shiny.onInputChange('player1', '0');
   Shiny.onInputChange('player2', '0');
+  
+  var simonFunction = function(simon) {
+    console.log(simon);
+  };
+  
   var commands = {
     'title *title': function(title) {
       Shiny.onInputChange('title', title);
@@ -15,11 +20,17 @@ if (annyang) {
       Shiny.onInputChange('color', color);
     },
     'leo :leo': function(leo) {
-      Shiny.onInputChange('player1', leo);
+      console.log(leo);
+      //Shiny.onInputChange('player1', leo);
     },
-    'simon :simon': function(simon) {
-      Shiny.onInputChange('player2', simon);
-    },
+    //'simon :simon': function(simon) {
+    //  Shiny.onInputChange('player2', simon);
+    //},
+    // /^(S|s)imon (0|1|2|3|one)$/
+    //'simon :simon': {'regexp': /Simon Friday/, 'callback': function(simon) {
+    //  Shiny.onInputChange('player2', simon);
+    //}},
+    'simon *simon': {'regexp': /^Simon[[:blank:]]\d+$/, 'callback': simonFunction}, 
     'bigger': function() {
       bigger += 1;
       Shiny.onInputChange('bigger', bigger);

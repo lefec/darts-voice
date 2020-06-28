@@ -4,6 +4,6 @@
 .Ruserdata
 gl_auth.json
 darts-voice.Rproj
-.wav
+*.wav
 player.html
 output.wav
