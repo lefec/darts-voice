@@ -19,18 +19,21 @@
   display: inline-flex;
 }
 
+#leg_nr, #next_player {
+  font-size: 50pt;
+  padding-top: 50px;
+  margin-bottom: 15px;
+}
+
+
 #next_player {
     margin-left: auto;
     margin-right: 15px;
-    font-size: 50pt;
-    margin-bottom: 15px;
     width: 250px;
     text-align: right;
-    padding-top: 50px;
 }
 
 #score_count {
-  background-color: #66c2a5;
   height: 150px;
   font-size: 60pt;
   text-align: center;
