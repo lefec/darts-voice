@@ -8,9 +8,22 @@ library(glue)
 library(shinyWidgets)
 library(DT)
 
+
+# ui ----------------------------------------------------------------------
 sidebar <- 
   dashboardSidebar(
     useShinyjs(),
+    
+    # focus on the score_count after starting the game. So you don't have to
+    # manually select the score input by mouse.
+    # https://stackoverflow.com/q/38362861
+    tags$head(tags$script(
+      "Shiny.addCustomMessageHandler('focus-score',
+        function(NULL) {
+          document.getElementById('score_count').focus();
+       });"
+    )),
+    
     tags$script("$('#browser').hide();"),
     
     textInput("player_names", 
@@ -22,14 +35,14 @@ sidebar <-
                  choices = c("Sinlge Out", "Double Out"), 
                  inline = TRUE), 
     radioButtons("best_of_x", "Best of:", 
-                 choices = seq(1, 9, by = 2), selected = 7, 
+                 choices = seq(1, 9, by = 2), selected = 1, 
                  inline = TRUE), 
     radioButtons("games_count", "Number of games per pair of players:", 
                  choices = 1:2, selected = 1, inline = TRUE),
     fluidRow(
       id = "buttons-sidebar",
       style = "margin-left: 0px",
-      actionButton("start_game", "Start Leg"), 
+      actionButton("start_game", "Start Game"), 
       actionButton("start_tournament", "Start Tournament")
     ),
     
@@ -61,7 +74,7 @@ body <-
     ")),
     
     fluidPage(
-      # placeholders for future content
+      # anchors for content
       div(id = "starting-player"),
       div(id = "content")
     )
@@ -75,9 +88,16 @@ ui <-
   )
 
 
+# server ------------------------------------------------------------------
+
 rv <- reactiveValues()
 source("helpers/game_init.R")
 source("helpers/leg.R")
+gifs <- readr::read_csv("data/gifs.csv", 
+                        col_types = cols(url = col_character()))$url
+
+sidebar_inputs <- c("player_names", "total_score", "double_out", "start_game", 
+                    "best_of_x", "games_count", "start_tournament")
 
 server <- function(input, output, session) {
   
@@ -95,20 +115,21 @@ server <- function(input, output, session) {
                      type = "error")
       return(NULL)
     }
+    
+    removeUI("#game-winner-animation")
    
-    c("player_names", "total_score", "double_out", "start_game", 
-      "best_of_x", "games_count", "start_tournament") %>% 
-      walk(disable)
+    walk(sidebar_inputs, disable)
     
     updateActionButton(session, "start_game", label = "Game started!")
     
+    start_observers <<- list()
+
      walk(.player_names, ~{
       .id_player <- glue("player_starts_{.x}")
       .ui <- actionButton(glue("player_starts_{.x}"), .x)
       insertUI("#starting-player", "beforeEnd", .ui)
       
-     observeEvent(input[[.id_player]], {
-
+      obs <- observeEvent(input[[.id_player]], {
         rv$game <- game_n_players$new(
           player_names = .player_names,
           total_score  = input$total_score %>% as.numeric(),
@@ -118,34 +139,40 @@ server <- function(input, output, session) {
         
         rv$leg <- rv$game$leg
         
-        output$leg_nr      <- renderText(
+        output$leg_nr <- renderText(
           as.character(rv$game$get_leg_id()))
         
         output$next_player <- renderText(
           rv$leg$players[rv$leg$next_score])
         
-        output$scoreboard  <- DT::renderDataTable(
+        output$scoreboard <- DT::renderDataTable(
           rv$game$scoreboard_dt())
         
-        removeUI("#starting-player")
+        removeUI("#starting-player > button", multiple = TRUE)
         
-        insertUI(
-          "#content", "beforeBegin",
-          tagList(
-            div(id = "score_input",
-                textOutput("leg_nr"), 
-                textOutput("next_player"),
-                numericInput("score_count", "Score", NA_real_,
-                             min = 0, max = 180, step = 1), 
-                DT::dataTableOutput("scoreboard", width = "200px")),
-            actionButton("score", "Score") %>% hidden(),
-            actionButton("score_rest", "Score Rest") %>% hidden()
-          ), immediate = TRUE)
+        .ui <- tagList(
+          div(id = "score_input",
+              textOutput("leg_nr"), 
+              textOutput("next_player"),
+              numericInput("score_count", "Score", NA_real_,
+                           min = 0, max = 180, step = 1), 
+              DT::dataTableOutput("scoreboard", width = "400px")),
+          actionButton("score", "Score") %>% hidden(),
+          actionButton("score_rest", "Score Rest") %>% hidden()
+        )
+        
+        insertUI("#content", "beforeBegin", .ui, immediate = TRUE)
         
         class_to_add <- glue("dart-player{rv$leg$next_score}")
         addClass(class = class_to_add, selector = "#score_count")
-      })
+        
+        # trigger js function to focus the curson on score_count
+        session$sendCustomMessage(type = "focus-score", message = list(NULL))
+      }, ignoreInit = TRUE)
+      
+      start_observers <<- c(start_observers, obs)
     })
+    
   })
   
   observeEvent(rv$leg$players, {
@@ -167,6 +194,7 @@ server <- function(input, output, session) {
     next_player <- rv$leg$players[rv$leg$next_score]
     output$next_player <- renderText(next_player)
     
+    # change the color of the score box to fit the player color
     if (exists("class_to_add")) {
       removeClass(class = class_to_add, selector = "#score_count")
     }
@@ -174,6 +202,7 @@ server <- function(input, output, session) {
     class_to_add <<- glue("dart-player{rv$leg$next_score}")
     addClass(class = class_to_add, selector = "#score_count")
     
+    # reset the numeric input to be ready to fill in the next score
     updateNumericInput(session, "score_count", value = NA_real_)
   }
   
@@ -189,12 +218,13 @@ server <- function(input, output, session) {
     scoring_event(input$score_count, TRUE)
   })
   
-  # Event triggered when a leg is finished
+  # Event triggered when a leg (or game) is finished
   observeEvent(rv$has_finished, {
     if (!is.na(rv$has_finished)) {
       print(rv$leg$has_finished)
+      
       removeUI("#content >div", multiple = TRUE)
-      rv$game$is_won()
+      # rv$game$is_won()
       rv$game <- rv$game$player_won(rv$has_finished)
       
       
@@ -202,6 +232,24 @@ server <- function(input, output, session) {
         # show win message when the game is over and enable the user
         # to start the next game
         removeUI("#score_input")
+        removeUI("#score")
+        removeUI("#score_rest")
+        
+        # destroy all observeEvents that start the game because they will
+        # be rebuild for the next game. This allows to change the players 
+        # between games.
+        walk(start_observers, ~.x$destroy())
+
+        gif <- p(id = "game-winner-animation", 
+                 glue("Winner: {rv$has_finished}"), 
+                 br(),
+                 img(src = sample(gifs, 1)))
+        insertUI("#content", "afterEnd", gif)
+        
+        updateActionButton(session, "start_game", label = "Start Game")
+        walk(sidebar_inputs, enable)
+        
+        
       } else {
         # leg finished and start new leg
         rv$leg <- rv$game$leg
@@ -213,6 +261,7 @@ server <- function(input, output, session) {
         class_to_add <<- glue("dart-player{rv$leg$next_score}")
         addClass(class = class_to_add, selector = "#score_count")
         
+        # reset the winning player
         rv$has_finished <- NA_character_
         output$leg_nr <- renderText(as.character(rv$game$get_leg_id()))
         output$scoreboard <- DT::renderDataTable(rv$game$scoreboard_dt())
@@ -220,7 +269,6 @@ server <- function(input, output, session) {
       
     }
   }, ignoreInit = TRUE)
-
 }
 
 shinyApp(ui, server)
