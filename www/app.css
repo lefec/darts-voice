@@ -26,7 +26,7 @@ div.nav-tabs-custom {
   overflow-y: auto;
 }
 
-#tournament_board {
+#tournament_board, #tournament_board th.sorting_disabled {
   text-align: center;
 }
 

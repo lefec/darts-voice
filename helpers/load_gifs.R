@@ -1,4 +1,4 @@
-gif_search_custom <- function(.query, .limit){
+gif_search_custom <- function(.query, .limit) {
   tibble(url = giphyr::gif_search(query = .query, limit = .limit)$original)
 }
 

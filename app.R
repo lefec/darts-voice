@@ -24,6 +24,20 @@ sidebar <-
        });"
     )),
     
+    # http://www.open-meta.org/technology/one-observer-for-all-buttons-in-shiny-using-javascriptjquery/
+    tags$head(tags$script(
+      "$(document).on('click', 'button', function(e) {
+        e.stopPropagation()
+        if(typeof BUTTON_CLICK_COUNT == 'undefined') {
+          BUTTON_CLICK_COUNT = 1; 
+        } else {
+          BUTTON_CLICK_COUNT ++;
+        }
+        Shiny.onInputChange('js.button_clicked', 
+          e.target.id + '_' + BUTTON_CLICK_COUNT);
+      });"
+    )), 
+    
     tags$script("$('#browser').hide();"),
     
     textInput("player_names", 
@@ -103,16 +117,24 @@ ui <-
 
 
 # server ------------------------------------------------------------------
-
-rv <- reactiveValues()
-source("helpers/game_init.R")
-source("helpers/leg.R")
-source("helpers/tournament.R")
 gifs <- readr::read_csv("data/gifs.csv", 
                         col_types = cols(url = col_character()))$url
 
 sidebar_inputs <- c("player_names", "total_score", "double_out", "start_game", 
                     "best_of_x", "games_count", "start_tournament")
+
+rv <- reactiveValues()
+tournament_scores <- 
+  reactiveValues(tab = tibble(p1 = character(), 
+                              p2 = character(), 
+                              score = character()))
+source("helpers/game_init.R")
+source("helpers/leg.R")
+source("helpers/tournament.R")
+source("helpers/start_game.R")
+
+tournament_going <- FALSE
+
 
 server <- function(input, output, session) {
   
@@ -123,71 +145,7 @@ server <- function(input, output, session) {
   observeEvent(input$start_game, {
     .player_names <- get_player_names(input$player_names)
     
-    if (length(.player_names) > 3) {
-      sendSweetAlert(session, "Error", "More than 3 players are not supported", 
-                     type = "error")
-      return(NULL)
-    }
-    
-    removeUI("#game-winner-animation")
-   
-    walk(sidebar_inputs, disable)
-    
-    updateActionButton(session, "start_game", label = "Game started!")
-    
-    start_observers <<- list()
-
-    updateTabItems(session, "main_body", "Game")
-    
-    walk(.player_names, ~{
-      .id_player <- glue("player_starts_{.x}")
-      .ui <- actionButton(glue("player_starts_{.x}"), .x)
-      insertUI("#starting-player", "beforeEnd", .ui)
-      
-      obs <- observeEvent(input[[.id_player]], {
-        rv$game <- game_n_players$new(
-          player_names = .player_names,
-          total_score  = input$total_score %>% as.numeric(),
-          double_out   = input$double_out == "Double Out", 
-          best_of = input$best_of_x %>% as.numeric(), 
-          player_nr_to_start_first_leg = which(.player_names == .x))
-        
-        rv$leg <- rv$game$leg
-        
-        output$leg_nr <- renderText(
-          as.character(rv$game$get_leg_id()))
-        
-        output$next_player <- renderText(
-          rv$leg$players[rv$leg$next_score])
-        
-        output$scoreboard <- DT::renderDataTable(
-          rv$game$scoreboard_dt())
-        
-        removeUI("#starting-player > button", multiple = TRUE)
-        
-        .ui <- tagList(
-          div(id = "score_input",
-              textOutput("leg_nr"), 
-              textOutput("next_player"),
-              numericInput("score_count", "Score", NA_real_,
-                           min = 0, max = 180, step = 1), 
-              DT::dataTableOutput("scoreboard", width = "400px")),
-          actionButton("score", "Score") %>% hidden(),
-          actionButton("score_rest", "Score Rest") %>% hidden()
-        )
-        
-        insertUI("#content", "beforeBegin", .ui, immediate = TRUE)
-        
-        class_to_add <- glue("dart-player{rv$leg$next_score}")
-        addClass(class = class_to_add, selector = "#score_count")
-        
-        # trigger js function to focus the curson on score_count
-        session$sendCustomMessage(type = "focus-score", message = list(NULL))
-      }, ignoreInit = TRUE)
-      
-      start_observers <<- c(start_observers, obs)
-    })
-    
+    start_game(session, .player_names, sidebar_inputs, input, output, rv)
   })
   
   observeEvent(rv$leg$players, {
@@ -261,13 +219,30 @@ server <- function(input, output, session) {
         walk(start_observers, ~.x$destroy())
 
         gif <- p(id = "game-winner-animation", 
-                 glue("Winner: {rv$has_finished}"), 
+                 glue("Winner: {rv$has_finished}"),
                  br(),
-                 img(src = sample(gifs, 1)))
+                 img(src = sample(gifs, 1)),
+                 br(),
+                 actionButton("continue_tournament", "Continue"))
         insertUI("#content", "afterEnd", gif)
         
         updateActionButton(session, "start_game", label = "Start Game")
-        walk(sidebar_inputs, enable)
+        
+        
+        if(tournament_going){
+          sc <- rv$game$scoreboard()
+          pl_names <- rv$game$player_names
+          score_aggr <- 
+            tibble(p1 = pl_names[1], p2 = pl_names[2]) %>% 
+            left_join(sc, by = c("p1" = "winner")) %>% 
+            rename(score_p1 = n) %>% 
+            left_join(sc, by = c("p2" = "winner")) %>%
+            rename(score_p2 = n) %>% 
+            unite(score, score_p1, score_p2, sep = " : ")
+          tournament_scores$tab <- bind_rows(tournament_scores$tab, score_aggr)
+        } else {
+          walk(sidebar_inputs, enable)
+        }
         
         
       } else {
@@ -290,16 +265,32 @@ server <- function(input, output, session) {
     }
   }, ignoreInit = TRUE)
   
-
-  # tournament ------------------------------------------------------------
-  observeEvent(input$start_tournament, {
-    .player_names <- get_player_names(input$player_names)
-
-    output$tournament_board <- DT::renderDataTable(
-      crosstab_players(.player_names, input$games_count)
-    )
+  observeEvent(input$continue_tournament, {
+    updateTabItems(session, "main_body", "Tournament")
   })
-
+  
+  # tournament ------------------------------------------------------------
+  tournament_tab <- eventReactive(input$start_tournament, {
+    .player_names <- get_player_names(input$player_names)
+    
+    walk(sidebar_inputs, enable)
+    
+    tournament_init(.player_names, input$games_count)
+  })
+  
+  output$tournament_board <- DT::renderDataTable({
+    tournament_going <<- TRUE
+    crosstab_players(tournament_tab(), tournament_scores$tab)
+  })
+  
+  observeEvent(input$js.button_clicked, {
+    uid <- str_split(input$js.button_clicked, "_")[[1]]
+    button <- uid[1]
+    if(button == "trngame"){
+      players <- uid[2:3]
+      start_game(session, players, sidebar_inputs, input, output, rv)
+    }
+  })
 }
 
 shinyApp(ui, server)

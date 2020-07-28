@@ -1,7 +1,9 @@
 # darts-voice
 Darts Scoreboard as a shiny app (WIP)
 
-You can play a single leg with up to 3 players
+You can play individual games (with up to 3 players). You can set the number of legs to play from 1 to 9, choose between single and double out, and set the game mode to 301 or 501 points. You can also play a tournament with **unlimited** players (where each individual game must be a 1on1).
+
+Winning a game loads a random gif.
 
 ## NOT USED ATM
 
