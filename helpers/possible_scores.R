@@ -15,7 +15,7 @@ double_outs <-
   pivot_longer(d1:d3) %>% 
   mutate(could_be_double = value %in% double[-1]) %>% 
   group_by(id) %>% 
-  summarise(at_least_one_double = any(could_be_double))
+  summarise(at_least_one_double = any(could_be_double), .groups = "drop")
 
 
 possible_scores <- 

@@ -20,6 +20,7 @@ leg_1_player <- R6Class(
     total_score = NA_real_,
     double_out = FALSE,
     player_color = NA_character_,
+    valid_score = TRUE,
 
     initialize = function(player_name, color, total_score = 301,
                           double_out = FALSE, reactive = TRUE) {
@@ -74,24 +75,29 @@ leg_1_player <- R6Class(
     },
     
     score = function(value) {
-      stop_if_not(value, is.numeric)
-      stop_if_not(value, ~ . >= 0)
-      stop_if_not(value, ~ . <= 180)
+      value_checks <- c(is.numeric(value), between(value, 0, 180))
       
-      # check if score is valid
-      if (value > self$remain()) {
-        value <- 0
+      if (all(value_checks)) {
+        
+        # check if score is valid
+        if (value > self$remain()) {
+          value <- 0
+        }
+        
+        if (private$reactive) private$rx_trigger$trigger()
+        
+        hist_tmp <- 
+          tibble(score = value, darts_count = 3, 
+                 round = self$round() + 1L, 
+                 remaining = self$remain() - value, 
+                 date = Sys.time())
+        
+        private$hist <- bind_rows(private$hist, hist_tmp)
+        self$valid_score <- TRUE
+      } else {
+        self$valid_score <- FALSE
       }
       
-      if (private$reactive) private$rx_trigger$trigger()
-      
-      hist_tmp <- 
-        tibble(score = value, darts_count = 3, 
-               round = self$round() + 1L, 
-               remaining = self$remain() - value, 
-               date = Sys.time())
-      
-      private$hist <- bind_rows(private$hist, hist_tmp)
     },
     
     score_rest = function(rest) {
@@ -190,31 +196,32 @@ leg_n_players <- R6Class(
       invisible(self)
     }, 
     
-    score = function(value) {
-      stop_if_not(self$has_finished, is.na)
-      self$legs[[self$next_score]]$score(value)
-      
-      if (self$legs[[self$next_score]]$status() == "finished") {
-        self$has_finished <- self$players[self$next_score]
-      }
-      
-      self$next_score <- 
-        if_else(self$next_score == length(self$players), 
-                1, self$next_score + 1)
-    }, 
-    
-    score_rest = function(value) {
+    score = function(value, rest) {
       stop_if_not(self$has_finished, is.na)
       
-      self$legs[[self$next_score]]$score_rest(value)
-      
-      if (self$legs[[self$next_score]]$status() == "finished") {
-        self$is_finished(self$players[self$next_score])
+      scoring_fun <- if (rest) {
+        self$legs[[self$next_score]]$score_rest 
+      } else {
+        self$legs[[self$next_score]]$score
       }
       
-      self$next_score <- 
-        if_else(self$next_score == length(self$players), 
-                1, self$next_score + 1)
+      scoring_fun(value)
+      
+      # checks the "valid_score" argument. Only proceed to the next player
+      # if the score was valid.
+      if (self$legs[[self$next_score]]$valid_score) {
+        
+        if (self$legs[[self$next_score]]$status() == "finished") {
+          self$has_finished <- self$players[self$next_score]
+        }
+        
+        self$next_score <- 
+          if_else(self$next_score == length(self$players), 
+                  1, self$next_score + 1)
+      }
+      
+      # return logical value if the scoring was successful or not  
+      self$legs[[self$next_score]]$valid_score
     }, 
     
     is_finished = function(name) {

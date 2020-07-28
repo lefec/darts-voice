@@ -1,3 +1,35 @@
+section.content {
+  padding: 0;
+}
+
+section.content>div.col-sm-12 {
+  padding: 0;
+}
+
+div.content-wrapper {
+  min-height: 0 !important;
+}
+body.skin-blue {
+  min-height: inherit !important;
+}
+
+#sidebarItemExpanded {
+  overflow-y: auto;
+  overflow-x: hidden;
+  max-height: calc(100vh - 50px);
+}
+
+div.nav-tabs-custom {
+  height: calc(100vh - 50px);
+  margin-bottom: 0;
+  border-radius: 0;
+  overflow-y: auto;
+}
+
+#tournament_board {
+  text-align: center;
+}
+
 .dart-player1 {
   background-color: #66c2a5 !important;
 }

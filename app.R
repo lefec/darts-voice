@@ -73,11 +73,25 @@ body <-
         }
     ")),
     
-    fluidPage(
-      # anchors for content
-      div(id = "starting-player"),
-      div(id = "content")
-    )
+    # fluidPage(
+      tabBox(id = "main_body", width = 12,
+             
+        tabPanel(
+         title =  "Tournament", 
+          DT::dataTableOutput("tournament_board")
+        ), 
+        
+        tabPanel(
+          title = "Game", 
+          # anchors for content
+          div(id = "starting-player"),
+          div(id = "content")
+        ), 
+        
+        tabPanel(
+          title = "Stats")
+      )
+    # )
   )
 
 ui <- 
@@ -93,6 +107,7 @@ ui <-
 rv <- reactiveValues()
 source("helpers/game_init.R")
 source("helpers/leg.R")
+source("helpers/tournament.R")
 gifs <- readr::read_csv("data/gifs.csv", 
                         col_types = cols(url = col_character()))$url
 
@@ -106,9 +121,7 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$start_game, {
-    .player_names <- 
-      str_split(input$player_names, ",", simplify = FALSE)[[1]] %>% 
-      str_trim()
+    .player_names <- get_player_names(input$player_names)
     
     if (length(.player_names) > 3) {
       sendSweetAlert(session, "Error", "More than 3 players are not supported", 
@@ -124,7 +137,9 @@ server <- function(input, output, session) {
     
     start_observers <<- list()
 
-     walk(.player_names, ~{
+    updateTabItems(session, "main_body", "Game")
+    
+    walk(.player_names, ~{
       .id_player <- glue("player_starts_{.x}")
       .ui <- actionButton(glue("player_starts_{.x}"), .x)
       insertUI("#starting-player", "beforeEnd", .ui)
@@ -183,26 +198,32 @@ server <- function(input, output, session) {
   # Function that is called whenever the scoring is triggered by either
   # pressing "Enter" or "r"
   scoring_event <- function(value, rest = FALSE) {
-    scoring_fun <- if (rest) rv$leg$score_rest else rv$leg$score
     
-    scoring_fun(value)
+    valid_score <- rv$leg$score(value, rest)
     
-    if (!is.na(rv$leg$has_finished)) {
-      rv$has_finished <- rv$leg$has_finished
+    
+    if (valid_score) {
+      if (!is.na(rv$leg$has_finished)) {
+        rv$has_finished <- rv$leg$has_finished
+      }
+      
+      next_player <- rv$leg$players[rv$leg$next_score]
+      output$next_player <- renderText(next_player)
+      
+      # change the color of the score box to fit the player color
+      if (exists("class_to_add")) {
+        removeClass(class = class_to_add, selector = "#score_count")
+      }
+      
+      class_to_add <<- glue("dart-player{rv$leg$next_score}")
+      addClass(class = class_to_add, selector = "#score_count")
+      
+      # reset the numeric input to be ready to fill in the next score
+    } else {
+      sendSweetAlert(session, "Error", glue("{value} is not a valid score"), 
+                     type = "error")
     }
-    
-    next_player <- rv$leg$players[rv$leg$next_score]
-    output$next_player <- renderText(next_player)
-    
-    # change the color of the score box to fit the player color
-    if (exists("class_to_add")) {
-      removeClass(class = class_to_add, selector = "#score_count")
-    }
-    
-    class_to_add <<- glue("dart-player{rv$leg$next_score}")
-    addClass(class = class_to_add, selector = "#score_count")
-    
-    # reset the numeric input to be ready to fill in the next score
+    # reset score input
     updateNumericInput(session, "score_count", value = NA_real_)
   }
   
@@ -224,7 +245,6 @@ server <- function(input, output, session) {
       print(rv$leg$has_finished)
       
       removeUI("#content >div", multiple = TRUE)
-      # rv$game$is_won()
       rv$game <- rv$game$player_won(rv$has_finished)
       
       
@@ -269,6 +289,17 @@ server <- function(input, output, session) {
       
     }
   }, ignoreInit = TRUE)
+  
+
+  # tournament ------------------------------------------------------------
+  observeEvent(input$start_tournament, {
+    .player_names <- get_player_names(input$player_names)
+
+    output$tournament_board <- DT::renderDataTable(
+      crosstab_players(.player_names, input$games_count)
+    )
+  })
+
 }
 
 shinyApp(ui, server)
