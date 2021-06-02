@@ -284,6 +284,7 @@ server <- function(input, output, session) {
   })
   
   observeEvent(input$js.button_clicked, {
+    # browser()
     uid <- str_split(input$js.button_clicked, "_")[[1]]
     button <- uid[1]
     if(button == "trngame"){
