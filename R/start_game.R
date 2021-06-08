@@ -1,25 +1,25 @@
-start_game <- function(session, players, sidebar_inputs, input, output, rv, 
+start_game <- function(session, players, sidebar_inputs, input, output, rv,
                        player_start = NULL) {
-  
+
   if (length(players) > 3) {
-    sendSweetAlert(session, "Error", "More than 3 players are not supported", 
-                   type = "error")
+    shinyWidgets::sendSweetAlert(session, "Error", "More than 3 players are not supported",
+                                 type = "error")
     return(NULL)
   }
-  
+
   removeUI("#game-winner-animation")
-  
-  walk(sidebar_inputs, disable)
-  
+
+  purrr::walk(sidebar_inputs, shinyjs::disable)
+
   updateActionButton(session, "start_game", label = "Game started!")
 
   start_observers <<- list()
 
   updateTabItems(session, "main_body", "Game")
-  
-  walk(players, ~{
-    .id_player <- glue("player_starts_{.x}")
-    .ui <- actionButton(glue("player_starts_{.x}"), .x)
+
+  purrr::walk(players, ~{
+    .id_player <- glue::glue("player_starts_{.x}")
+    .ui <- actionButton(glue::glue("player_starts_{.x}"), .x)
     insertUI("#starting-player", "beforeEnd", .ui)
 
     obs <- observeEvent(input[[.id_player]], {
@@ -50,14 +50,14 @@ start_game <- function(session, players, sidebar_inputs, input, output, rv,
             numericInput("score_count", "Score", NA_real_,
                          min = 0, max = 180, step = 1),
             DT::dataTableOutput("scoreboard", width = "400px")),
-        actionButton("score", "Score") %>% hidden(),
-        actionButton("score_rest", "Score Rest") %>% hidden()
+        actionButton("score", "Score") %>% shinyjs::hidden(),
+        actionButton("score_rest", "Score Rest") %>% shinyjs::hidden()
       )
 
       insertUI("#content", "beforeBegin", .ui, immediate = TRUE)
 
-      class_to_add <- glue("dart-player{rv$leg$next_score}")
-      addClass(class = class_to_add, selector = "#score_count")
+      class_to_add <- glue::glue("dart-player{rv$leg$next_score}")
+      shinyjs::addClass(class = class_to_add, selector = "#score_count")
 
       # trigger js function to focus the cursor on score_count
       session$sendCustomMessage(type = "focus-score", message = list(NULL))

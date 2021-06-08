@@ -1,6 +1,6 @@
 i_box <- function(leg, input, output, .width) {
-  info_id  <- glue("remain_{leg$player_name}")
-  table_id <- glue("table_{leg$player_name}")
+  info_id  <- glue::glue("remain_{leg$player_name}")
+  table_id <- glue::glue("table_{leg$player_name}")
 
   # server
   output[[info_id]] <-
@@ -13,7 +13,7 @@ i_box <- function(leg, input, output, .width) {
   # ui
   .ui <- column(
     width = .width,
-    div(style = glue("border-color: {leg$player_color}; border-width: 15px;
+    div(style = glue::glue("border-color: {leg$player_color}; border-width: 15px;
                      border-style: solid; padding: 10px"),
         infoBoxOutput(info_id, 12),
         DT::dataTableOutput(table_id),
@@ -24,6 +24,6 @@ i_box <- function(leg, input, output, .width) {
 }
 
 get_player_names <- function(input_names) {
-    str_split(input_names, ",", simplify = FALSE)[[1]] %>%
-    str_trim()
+    stringr::str_split(input_names, ",", simplify = FALSE)[[1]] %>%
+    stringr::str_trim()
 }
